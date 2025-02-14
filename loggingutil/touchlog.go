@@ -20,7 +20,7 @@ type touchRecord struct {
 var touchBuffer []touchRecord
 
 func SendTouchLog(gameName string, playerID, sessionID, playID string, ticks uint64, touches []touchutil.Touch) {
-	if touchutil.AnyTouchesActive(touches) || touchutil.AnyTouchesJustTouched(touches) {
+	if len(touches) > 0 {
 		record := touchRecord{Ticks: ticks}
 		for i := range touches {
 			t := touches[i]
