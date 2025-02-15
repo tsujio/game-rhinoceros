@@ -22,10 +22,9 @@ import (
 	logging "github.com/tsujio/game-logging-server/client"
 	"github.com/tsujio/game-rhinoceros/effectutil"
 	"github.com/tsujio/game-rhinoceros/loggingutil"
-	resourceutilv2 "github.com/tsujio/game-rhinoceros/resourceutil"
+	"github.com/tsujio/game-rhinoceros/resourceutil"
 	"github.com/tsujio/game-rhinoceros/touchutil"
 	"github.com/tsujio/game-util/mathutil"
-	"github.com/tsujio/game-util/resourceutil"
 )
 
 const (
@@ -61,24 +60,27 @@ var (
 	emptySubImage = emptyImage.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)
 )
 
-//go:embed resources/secret resources/*.png resources/*.ttf resources/*.dat
+//go:embed resources/secret resources/*.png resources/*.ttf resources/*.dat resources/*.wav
 var resources embed.FS
 
-var imgLoader = resourceutilv2.NewImageLoader(resources, "resources/rhinoceros.png")
+var imgLoader = resourceutil.NewImageLoader(resources, "resources/rhinoceros.png")
 
 var (
-	fontFaceL, fontFaceM, fontFaceS = resourceutilv2.ForceLoadFont(resources, "resources/PressStart2P-Regular.ttf")
+	fontFaceL, fontFaceM, fontFaceS = resourceutil.ForceLoadFont(resources, "resources/PressStart2P-Regular.ttf")
 	audioContext                    = audio.NewContext(48000)
-	gameStartAudioData              = resourceutil.ForceLoadDecodedAudio(resources, "resources/魔王魂 効果音 システム49.mp3.dat", audioContext)
-	gameOverAudioData               = resourceutil.ForceLoadDecodedAudio(resources, "resources/魔王魂 効果音 システム32.mp3.dat", audioContext)
-	hitAudioData                    = resourceutil.ForceLoadDecodedAudio(resources, "resources/maou_se_battle12.mp3.dat", audioContext)
-	runAudioData                    = resourceutil.ForceLoadDecodedAudio(resources, "resources/maou_se_sound_ignition01.mp3.dat", audioContext)
-	chargeAudioData                 = resourceutil.ForceLoadDecodedAudio(resources, "resources/maou_se_sound17.mp3.dat", audioContext)
-	rhinoImg                        = imgLoader.ExtractList(0, 0, 110, 60, 1, 4)
-	rhinoHitImg                     = imgLoader.Extract(0, 240, 110, 70)
-	enemyImg                        = imgLoader.ExtractList(150, 0, 120, 70, 1, 2)
-	treeImg                         = imgLoader.Extract(290, 0, 150, 120)
-	weedImg                         = imgLoader.Extract(290, 130, 70, 40)
+	gameStartAudioData              = resourceutil.ForceLoadDecodedAudio(resources, "resources/魔王魂 効果音 システム49.mp3.dat")
+	gameOverAudioData               = resourceutil.ForceLoadDecodedAudio(resources, "resources/魔王魂 効果音 システム32.mp3.dat")
+	hitAudioData                    = resourceutil.ForceLoadDecodedAudio(resources, "resources/maou_se_battle12.mp3.dat")
+	runAudioData                    = resourceutil.ForceLoadDecodedAudio(resources, "resources/maou_se_sound_ignition01.mp3.dat")
+	chargeAudioData                 = resourceutil.ForceLoadDecodedAudio(resources, "resources/maou_se_sound17.mp3.dat")
+	bgmPlayer                       = resourceutil.ForceCreateBGMPlayer(resources, "resources/bgm-rhinoceros.wav", audioContext, &resourceutil.BGMOptions{
+		LoopLengthOffset: int64(-math.Round(1411 * 1024 / 8 * 0.4)),
+	})
+	rhinoImg    = imgLoader.ExtractList(0, 0, 110, 60, 1, 4)
+	rhinoHitImg = imgLoader.Extract(0, 240, 110, 70)
+	enemyImg    = imgLoader.ExtractList(150, 0, 120, 70, 1, 2)
+	treeImg     = imgLoader.Extract(290, 0, 150, 120)
+	weedImg     = imgLoader.Extract(290, 130, 70, 40)
 	//cloudImgS                       = imgLoader.Extract(290, 190, 80, 40)
 	cloudImgL     = imgLoader.Extract(290, 240, 130, 60)
 	backgroundImg = imgLoader.Extract(560, 0, 60, 480)
@@ -339,7 +341,7 @@ func (r *GameRunner) update(touches []touchutil.Touch) {
 				r.effects = append(r.effects, effectutil.NewSplashEffect(
 					rhinoX+50,
 					rhinoY-30,
-					999,
+					120,
 					&effectutil.SplashEffectOptions{
 						Count:           5,
 						Color:           color.RGBA{0xff, 0xff, 0, 0xff},
@@ -542,6 +544,9 @@ func (g *Game) Update() error {
 			g.setNextMode(GameModePlaying)
 
 			audioContext.NewPlayerFromBytes(gameStartAudioData).Play()
+
+			bgmPlayer.Rewind()
+			bgmPlayer.Play()
 		}
 	case GameModePlaying:
 		g.runner.update(g.touches)
@@ -560,6 +565,7 @@ func (g *Game) Update() error {
 	case GameModeGameOver:
 		if g.modeTicks > 60 && touchutil.AnyTouchesJustTouched(g.touches) {
 			g.initialize()
+			bgmPlayer.Pause()
 		}
 	}
 
@@ -567,26 +573,26 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) drawScore(dst *ebiten.Image) {
-	resourceutilv2.DrawTextWithFace(dst, fmt.Sprintf("SCORE %d HI %d", g.runner.score, g.highScore),
+	resourceutil.DrawTextWithFace(dst, fmt.Sprintf("SCORE %d HI %d", g.runner.score, g.highScore),
 		screenWidth-10, 10, text.AlignEnd, color.White, fontFaceS, 0)
 }
 
 func (g *Game) drawTitle(dst *ebiten.Image) {
-	resourceutilv2.DrawTextWithFace(dst, "RHINOCEROS",
+	resourceutil.DrawTextWithFace(dst, "RHINOCEROS",
 		screenWidth/2, 120, text.AlignCenter, color.RGBA{0, 0, 0x50, 0xff}, fontFaceL, 0)
 
-	resourceutilv2.DrawTextWithFace(dst, "[HOLD] Charge\n[RELEASE] Rush",
+	resourceutil.DrawTextWithFace(dst, "[HOLD] Charge\n[RELEASE] Rush",
 		screenWidth/2, 260, text.AlignCenter, color.RGBA{0, 0, 0x50, 0xff}, fontFaceS, 2.4)
 
-	resourceutilv2.DrawTextWithFace(dst, "CREATOR: NAOKI TSUJIO\nFONT: Press Start 2P by CodeMan38\nSOUND EFFECT: MaouDamashii",
+	resourceutil.DrawTextWithFace(dst, "CREATOR: NAOKI TSUJIO\nFONT: Press Start 2P by CodeMan38\nSOUND EFFECT: MaouDamashii",
 		screenWidth/2, 410, text.AlignCenter, color.RGBA{0, 0, 0x50, 0xff}, fontFaceS, 1.8)
 }
 
 func (g *Game) drawGameOver(dst *ebiten.Image) {
-	resourceutilv2.DrawTextWithFace(dst, "GAME OVER",
+	resourceutil.DrawTextWithFace(dst, "GAME OVER",
 		screenWidth/2, 175, text.AlignCenter, color.RGBA{0, 0, 0x50, 0xff}, fontFaceL, 0)
 
-	resourceutilv2.DrawTextWithFace(dst, fmt.Sprintf("YOUR SCORE IS\n%d!", g.runner.score),
+	resourceutil.DrawTextWithFace(dst, fmt.Sprintf("YOUR SCORE IS\n%d!", g.runner.score),
 		screenWidth/2, 260, text.AlignCenter, color.RGBA{0, 0, 0x50, 0xff}, fontFaceM, 1.8)
 }
 
